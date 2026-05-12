@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Detector VLF PRO Ajustável</title>
+
+<style>
+
+body{
+    margin:0;
+    background:#000;
+    color:#00ff88;
+    font-family:Arial;
+    overflow:hidden;
+}
+
+#top{
+    background:#050505;
+    padding:10px;
+    border-bottom:1px solid #00ff88;
+}
+
+button{
+    padding:12px;
+    margin:4px;
+    font-size:16px;
+    border:none;
+    border-radius:8px;
+    background:#00ff88;
+    color:#000;
+    font-weight:bold;
+}
+
+input[type=range]{
+    width:100%;
+}
+
+.info{
+    margin-top:6px;
+    font-size:15px;
+}
+
+.bar{
+    width:100%;
+    height:24px;
+    background:#111;
+    border:1px solid #00ff88;
+    margin-top:10px;
+    position:relative;
+}
+
+.fill{
+    position:absolute;
+    left:0;
+    top:0;
+    bottom:0;
+    width:0%;
+    background:#00ff88;
+}
+
+canvas{
+    display:block;
+    width:100vw;
+}
+
+#spectrum{
+    height:220px;
+    background:#000;
+}
+
+#waterfall{
+    height:320px;
+    background:#000;
+}
+
+.sliderBox{
+    margin-top:10px;
+}
+
+</style>
+</head>
+<body>
+
+<div id="top">
+
+<button onclick="start()">INICIAR</button>
+<button onclick="toggleTX()">TRANSMISSÃO</button>
+
+<div class="sliderBox">
+Frequência TX:
+<span id="freqSet">9500</span> Hz
+
+<input
+type="range"
+id="freqSlider"
+min="1000"
+max="20000"
+step="1"
+value="9500"
+oninput="updateFreq(this.value)"
+>
+</div>
+
+<div class="info">
+Frequência Detectada:
+<span id="freq">0</span> Hz
+</div>
+
+<div class="info">
+ΔF:
+<span id="delta">0</span> Hz
+</div>
+
+<div class="info">
+Amplitude:
+<span id="amp">0</span>
+</div>
+
+<div class="bar">
+<div class="fill" id="meter"></div>
+</div>
+
+</div>
+
+<canvas id="spectrum"></canvas>
+<canvas id="waterfall"></canvas>
+
+<script>
+
+let REF_FREQ = 9500;
+
+let audioCtx;
+let analyser;
+let oscillator;
+let micSource;
+
+let txEnabled = false;
+
+const FFT_SIZE = 32768;
+
+const spectrum =
+    document.getElementById("spectrum");
+
+const waterfall =
+    document.getElementById("waterfall");
+
+spectrum.width = innerWidth;
+spectrum.height = 220;
+
+waterfall.width = innerWidth;
+waterfall.height = 320;
+
+const sctx = spectrum.getContext("2d");
+const wctx = waterfall.getContext("2d");
+
+async function start(){
+
+    audioCtx =
+        new (window.AudioContext ||
+        window.webkitAudioContext)();
+
+    const stream =
+        await navigator.mediaDevices.getUserMedia({
+
+        audio:{
+            echoCancellation:false,
+            noiseSuppression:false,
+            autoGainControl:false,
+            latency:0
+        }
+
+    });
+
+    analyser =
+        audioCtx.createAnalyser();
+
+    analyser.fftSize = FFT_SIZE;
+    analyser.smoothingTimeConstant = 0;
+
+    micSource =
+        audioCtx.createMediaStreamSource(stream);
+
+    micSource.connect(analyser);
+
+    createTX();
+
+    animate();
+}
+
+function createTX(){
+
+    oscillator =
+        audioCtx.createOscillator();
+
+    oscillator.type = "sine";
+    oscillator.frequency.value = REF_FREQ;
+
+    const gain =
+        audioCtx.createGain();
+
+    gain.gain.value = 0;
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.outputGain = gain;
+
+    oscillator.start();
+}
+
+function toggleTX(){
+
+    txEnabled = !txEnabled;
+
+    oscillator.outputGain.gain.value =
+        txEnabled ? 0.2 : 0;
+}
+
+function updateFreq(value){
+
+    REF_FREQ = Number(value);
+
+    document.getElementById("freqSet")
+        .innerText = REF_FREQ;
+
+    if(oscillator){
+
+        oscillator.frequency.setValueAtTime(
+            REF_FREQ,
+            audioCtx.currentTime
+        );
+    }
+}
+
+function animate(){
+
+    requestAnimationFrame(animate);
+
+    const data =
+        new Float32Array(
+            analyser.frequencyBinCount
+        );
+
+    analyser.getFloatFrequencyData(data);
+
+    const sr = audioCtx.sampleRate;
+
+    let max = -999;
+    let peak = 0;
+
+    const RANGE = 700;
+
+    const lowFreq =
+        REF_FREQ - RANGE;
+
+    const highFreq =
+        REF_FREQ + RANGE;
+
+    const lowBin =
+        Math.floor(
+            lowFreq/(sr/2)*data.length
+        );
+
+    const highBin =
+        Math.floor(
+            highFreq/(sr/2)*data.length
+        );
+
+    for(let i=lowBin;i<highBin;i++){
+
+        if(data[i] > max){
+
+            max = data[i];
+            peak = i;
+        }
+    }
+
+    const detectedFreq =
+        peak * sr / FFT_SIZE;
+
+    const delta =
+        Math.abs(
+            detectedFreq - REF_FREQ
+        );
+
+    document.getElementById("freq")
+        .innerText =
+        detectedFreq.toFixed(2);
+
+    document.getElementById("delta")
+        .innerText =
+        delta.toFixed(2);
+
+    document.getElementById("amp")
+        .innerText =
+        max.toFixed(1);
+
+    let level =
+        Math.min(delta * 10,100);
+
+    document.getElementById("meter")
+        .style.width =
+        level + "%";
+
+    drawSpectrum(
+        data,
+        sr,
+        lowFreq,
+        highFreq
+    );
+
+    drawWaterfall(
+        data,
+        sr,
+        lowFreq,
+        highFreq
+    );
+}
+
+function drawSpectrum(
+    data,
+    sr,
+    lowFreq,
+    highFreq
+){
+
+    sctx.clearRect(
+        0,
+        0,
+        spectrum.width,
+        spectrum.height
+    );
+
+    sctx.beginPath();
+
+    for(let x=0;x<spectrum.width;x++){
+
+        const freq =
+            lowFreq +
+            (x/spectrum.width) *
+            (highFreq-lowFreq);
+
+        const bin =
+            Math.floor(
+                freq/(sr/2)*data.length
+            );
+
+        const val = data[bin];
+
+        const y =
+            spectrum.height -
+            ((val+140)/100) *
+            spectrum.height;
+
+        if(x===0)
+            sctx.moveTo(x,y);
+        else
+            sctx.lineTo(x,y);
+    }
+
+    sctx.strokeStyle="#00ff88";
+    sctx.lineWidth=2;
+    sctx.stroke();
+
+    const refX =
+        ((REF_FREQ-lowFreq)/
+        (highFreq-lowFreq))
+        * spectrum.width;
+
+    sctx.strokeStyle="#ff0000";
+
+    sctx.beginPath();
+    sctx.moveTo(refX,0);
+    sctx.lineTo(refX,spectrum.height);
+    sctx.stroke();
+}
+
+function drawWaterfall(
+    data,
+    sr,
+    lowFreq,
+    highFreq
+){
+
+    const img =
+        wctx.getImageData(
+            0,
+            1,
+            waterfall.width,
+            waterfall.height-1
+        );
+
+    wctx.putImageData(img,0,0);
+
+    for(let x=0;x<waterfall.width;x++){
+
+        const freq =
+            lowFreq +
+            (x/waterfall.width) *
+            (highFreq-lowFreq);
+
+        const bin =
+            Math.floor(
+                freq/(sr/2)*data.length
+            );
+
+        const val = data[bin];
+
+        const intensity =
+            Math.max(
+                0,
+                Math.min(
+                    255,
+                    (val+120)*5
+                )
+            );
+
+        wctx.fillStyle =
+            `rgb(
+                ${intensity},
+                255,
+                ${intensity/5}
+            )`;
+
+        wctx.fillRect(
+            x,
+            waterfall.height-1,
+            1,
+            1
+        );
+    }
+}
+
+</script>
+
+</body>
+</html>
