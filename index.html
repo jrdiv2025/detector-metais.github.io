@@ -1,438 +1,190 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Detector VLF PRO Ajustável</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bússola</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-<style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+        }
 
-body{
-    margin:0;
-    background:#000;
-    color:#00ff88;
-    font-family:Arial;
-    overflow:hidden;
-}
+        .compass-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
 
-#top{
-    background:#050505;
-    padding:10px;
-    border-bottom:1px solid #00ff88;
-}
+        /* A roda da bússola feita com CSS */
+        #compass {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 8px solid #fff;
+            background: #222;
+            position: relative;
+            transition: transform 0.2s ease-out;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
 
-button{
-    padding:12px;
-    margin:4px;
-    font-size:16px;
-    border:none;
-    border-radius:8px;
-    background:#00ff88;
-    color:#000;
-    font-weight:bold;
-}
+        /* Marcadores de direção */
+        .mark {
+            position: absolute;
+            width: 2px;
+            height: 10px;
+            background: #fff;
+            left: 50%;
+            top: 0;
+            transform-origin: 50% 150px;
+        }
 
-input[type=range]{
-    width:100%;
-}
+        .mark.main {
+            width: 4px;
+            height: 15px;
+            background: #ff4444;
+        }
 
-.info{
-    margin-top:6px;
-    font-size:15px;
-}
+        /* Agulha */
+        .needle {
+            position: absolute;
+            width: 6px;
+            height: 130px;
+            background: #ff4444;
+            left: 50%;
+            top: 50%;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%);
+            border-radius: 3px;
+            z-index: 2;
+        }
+        .needle::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: -8px;
+            width: 22px;
+            height: 22px;
+            background: #fff;
+            border-radius: 50%;
+            border: 4px solid #333;
+        }
+        .needle::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -8px;
+            width: 0;
+            height: 0;
+            border-left: 11px solid transparent;
+            border-right: 11px solid transparent;
+            border-bottom: 20px solid #ff4444;
+        }
 
-.bar{
-    width:100%;
-    height:24px;
-    background:#111;
-    border:1px solid #00ff88;
-    margin-top:10px;
-    position:relative;
-}
+        /* Centro dos graus */
+        #degree {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 30px;
+            z-index: 3;
+        }
 
-.fill{
-    position:absolute;
-    left:0;
-    top:0;
-    bottom:0;
-    width:0%;
-    background:#00ff88;
-}
+        #direction {
+            margin-top: 30px;
+            font-size: 32px;
+            font-weight: bold;
+        }
 
-canvas{
-    display:block;
-    width:100vw;
-}
-
-#spectrum{
-    height:220px;
-    background:#000;
-}
-
-#waterfall{
-    height:320px;
-    background:#000;
-}
-
-.sliderBox{
-    margin-top:10px;
-}
-
-</style>
+        #status {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+        }
+    </style>
 </head>
 <body>
 
-<div id="top">
+    <div class="compass-container">
+        <div id="compass">
+            <div class="needle"></div>
+            <!-- Marcadores -->
+            <div class="mark main" style="transform: rotate(0deg)"></div>
+            <div class="mark" style="transform: rotate(45deg)"></div>
+            <div class="mark" style="transform: rotate(90deg)"></div>
+            <div class="mark" style="transform: rotate(135deg)"></div>
+            <div class="mark main" style="transform: rotate(180deg)"></div>
+            <div class="mark" style="transform: rotate(225deg)"></div>
+            <div class="mark" style="transform: rotate(270deg)"></div>
+            <div class="mark" style="transform: rotate(315deg)"></div>
+        </div>
+        <div id="degree">0°</div>
+    </div>
 
-<button onclick="start()">INICIAR</button>
-<button onclick="toggleTX()">TRANSMISSÃO</button>
+    <div id="direction">N</div>
+    <div id="status">Inicializando...</div>
 
-<div class="sliderBox">
-Frequência TX:
-<span id="freqSet">9500</span> Hz
+    <script>
+        const compass = document.getElementById('compass');
+        const degreeDisplay = document.getElementById('degree');
+        const directionDisplay = document.getElementById('direction');
+        const statusDisplay = document.getElementById('status');
 
-<input
-type="range"
-id="freqSlider"
-min="1000"
-max="20000"
-step="1"
-value="9500"
-oninput="updateFreq(this.value)"
->
-</div>
+        const directions = ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'];
 
-<div class="info">
-Frequência Detectada:
-<span id="freq">0</span> Hz
-</div>
+        if (window.DeviceOrientationEvent) {
+            statusDisplay.innerText = "Solicitando permissão...";
 
-<div class="info">
-ΔF:
-<span id="delta">0</span> Hz
-</div>
-
-<div class="info">
-Amplitude:
-<span id="amp">0</span>
-</div>
-
-<div class="bar">
-<div class="fill" id="meter"></div>
-</div>
-
-</div>
-
-<canvas id="spectrum"></canvas>
-<canvas id="waterfall"></canvas>
-
-<script>
-
-let REF_FREQ = 9500;
-
-let audioCtx;
-let analyser;
-let oscillator;
-let micSource;
-
-let txEnabled = false;
-
-const FFT_SIZE = 32768;
-
-const spectrum =
-    document.getElementById("spectrum");
-
-const waterfall =
-    document.getElementById("waterfall");
-
-spectrum.width = innerWidth;
-spectrum.height = 220;
-
-waterfall.width = innerWidth;
-waterfall.height = 320;
-
-const sctx = spectrum.getContext("2d");
-const wctx = waterfall.getContext("2d");
-
-async function start(){
-
-    audioCtx =
-        new (window.AudioContext ||
-        window.webkitAudioContext)();
-
-    const stream =
-        await navigator.mediaDevices.getUserMedia({
-
-        audio:{
-            echoCancellation:false,
-            noiseSuppression:false,
-            autoGainControl:false,
-            latency:0
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientation);
+                            statusDisplay.innerText = "Bússola ativa";
+                        } else {
+                            statusDisplay.innerText = "Permissão negada";
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                window.addEventListener('deviceorientation', handleOrientation);
+                statusDisplay.innerText = "Bússola ativa";
+            }
+        } else {
+            statusDisplay.innerText = "Seu dispositivo não suporta sensor de orientação";
         }
 
-    });
+        function handleOrientation(event) {
+            let alpha = event.alpha;
 
-    analyser =
-        audioCtx.createAnalyser();
-
-    analyser.fftSize = FFT_SIZE;
-    analyser.smoothingTimeConstant = 0;
-
-    micSource =
-        audioCtx.createMediaStreamSource(stream);
-
-    micSource.connect(analyser);
-
-    createTX();
-
-    animate();
-}
-
-function createTX(){
-
-    oscillator =
-        audioCtx.createOscillator();
-
-    oscillator.type = "sine";
-    oscillator.frequency.value = REF_FREQ;
-
-    const gain =
-        audioCtx.createGain();
-
-    gain.gain.value = 0;
-
-    oscillator.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    oscillator.outputGain = gain;
-
-    oscillator.start();
-}
-
-function toggleTX(){
-
-    txEnabled = !txEnabled;
-
-    oscillator.outputGain.gain.value =
-        txEnabled ? 0.2 : 0;
-}
-
-function updateFreq(value){
-
-    REF_FREQ = Number(value);
-
-    document.getElementById("freqSet")
-        .innerText = REF_FREQ;
-
-    if(oscillator){
-
-        oscillator.frequency.setValueAtTime(
-            REF_FREQ,
-            audioCtx.currentTime
-        );
-    }
-}
-
-function animate(){
-
-    requestAnimationFrame(animate);
-
-    const data =
-        new Float32Array(
-            analyser.frequencyBinCount
-        );
-
-    analyser.getFloatFrequencyData(data);
-
-    const sr = audioCtx.sampleRate;
-
-    let max = -999;
-    let peak = 0;
-
-    const RANGE = 700;
-
-    const lowFreq =
-        REF_FREQ - RANGE;
-
-    const highFreq =
-        REF_FREQ + RANGE;
-
-    const lowBin =
-        Math.floor(
-            lowFreq/(sr/2)*data.length
-        );
-
-    const highBin =
-        Math.floor(
-            highFreq/(sr/2)*data.length
-        );
-
-    for(let i=lowBin;i<highBin;i++){
-
-        if(data[i] > max){
-
-            max = data[i];
-            peak = i;
+            if (alpha !== null) {
+                compass.style.transform = `rotate(${-alpha}deg)`;
+                degreeDisplay.innerText = Math.round(alpha) + '°';
+                
+                const index = Math.round(((alpha % 360) / 45)) % 8;
+                directionDisplay.innerText = directions[index];
+            }
         }
-    }
-
-    const detectedFreq =
-        peak * sr / FFT_SIZE;
-
-    const delta =
-        Math.abs(
-            detectedFreq - REF_FREQ
-        );
-
-    document.getElementById("freq")
-        .innerText =
-        detectedFreq.toFixed(2);
-
-    document.getElementById("delta")
-        .innerText =
-        delta.toFixed(2);
-
-    document.getElementById("amp")
-        .innerText =
-        max.toFixed(1);
-
-    let level =
-        Math.min(delta * 10,100);
-
-    document.getElementById("meter")
-        .style.width =
-        level + "%";
-
-    drawSpectrum(
-        data,
-        sr,
-        lowFreq,
-        highFreq
-    );
-
-    drawWaterfall(
-        data,
-        sr,
-        lowFreq,
-        highFreq
-    );
-}
-
-function drawSpectrum(
-    data,
-    sr,
-    lowFreq,
-    highFreq
-){
-
-    sctx.clearRect(
-        0,
-        0,
-        spectrum.width,
-        spectrum.height
-    );
-
-    sctx.beginPath();
-
-    for(let x=0;x<spectrum.width;x++){
-
-        const freq =
-            lowFreq +
-            (x/spectrum.width) *
-            (highFreq-lowFreq);
-
-        const bin =
-            Math.floor(
-                freq/(sr/2)*data.length
-            );
-
-        const val = data[bin];
-
-        const y =
-            spectrum.height -
-            ((val+140)/100) *
-            spectrum.height;
-
-        if(x===0)
-            sctx.moveTo(x,y);
-        else
-            sctx.lineTo(x,y);
-    }
-
-    sctx.strokeStyle="#00ff88";
-    sctx.lineWidth=2;
-    sctx.stroke();
-
-    const refX =
-        ((REF_FREQ-lowFreq)/
-        (highFreq-lowFreq))
-        * spectrum.width;
-
-    sctx.strokeStyle="#ff0000";
-
-    sctx.beginPath();
-    sctx.moveTo(refX,0);
-    sctx.lineTo(refX,spectrum.height);
-    sctx.stroke();
-}
-
-function drawWaterfall(
-    data,
-    sr,
-    lowFreq,
-    highFreq
-){
-
-    const img =
-        wctx.getImageData(
-            0,
-            1,
-            waterfall.width,
-            waterfall.height-1
-        );
-
-    wctx.putImageData(img,0,0);
-
-    for(let x=0;x<waterfall.width;x++){
-
-        const freq =
-            lowFreq +
-            (x/waterfall.width) *
-            (highFreq-lowFreq);
-
-        const bin =
-            Math.floor(
-                freq/(sr/2)*data.length
-            );
-
-        const val = data[bin];
-
-        const intensity =
-            Math.max(
-                0,
-                Math.min(
-                    255,
-                    (val+120)*5
-                )
-            );
-
-        wctx.fillStyle =
-            `rgb(
-                ${intensity},
-                255,
-                ${intensity/5}
-            )`;
-
-        wctx.fillRect(
-            x,
-            waterfall.height-1,
-            1,
-            1
-        );
-    }
-}
-
-</script>
+    </script>
 
 </body>
 </html>
