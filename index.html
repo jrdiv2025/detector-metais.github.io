@@ -106,6 +106,10 @@
     transition: border-color 0.2s, background 0.2s;
     position: relative;
     overflow: hidden;
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .upload-zone:hover { border-color: var(--thread); background: #fff8f8; }
   .upload-zone.has-image {
@@ -120,9 +124,10 @@
   .upload-zone p { font-size: 0.82rem; color: var(--muted); }
   .upload-zone p strong { color: var(--thread); }
   #preview-img {
-    width: 100%; display: block;
+    width: 100%;
+    height: 100%;
+    display: block;
     border-radius: var(--radius);
-    max-height: 180px;
     object-fit: contain;
     background: var(--linen);
   }
@@ -233,7 +238,7 @@
   .btn-secondary:hover { background: var(--border); }
   .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Color palette */
+  /* Color palette (sidebar mini) */
   #paleta-section { display: none; }
   .paleta-grid {
     display: flex;
@@ -266,33 +271,6 @@
     font-size: 0.78rem;
     color: var(--muted);
     margin-top: 6px;
-  }
-
-  /* Color stats */
-  .color-stats {
-    margin-top: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-    font-size: 0.75rem;
-  }
-  .color-stat-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--linen);
-  }
-  .color-stat-swatch {
-    width: 20px;
-    height: 20px;
-    border-radius: 3px;
-    border: 1px solid rgba(0,0,0,0.1);
-    flex-shrink: 0;
-  }
-  .color-stat-info {
-    flex: 1;
-    display: flex;
-    justify-content: space-between;
   }
 
   /* Progress */
@@ -398,13 +376,123 @@
     gap: 18px;
   }
   .canvas-info span strong { color: var(--ink); }
-  
+
+  /* LEGENDA */
+  #legenda-section {
+    display: none;
+    width: 100%;
+    max-width: 900px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+
+  .legenda-header {
+    background: var(--ink);
+    color: var(--white);
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .legenda-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    letter-spacing: 0.03em;
+  }
+  .legenda-header span {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legenda-body {
+    padding: 18px 22px;
+  }
+
+  .legenda-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  .legenda-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--paper);
+    position: relative;
+  }
+
+  .legenda-swatch-wrap {
+    position: relative;
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+  }
+
+  .legenda-swatch {
+    width: 38px;
+    height: 38px;
+    border-radius: 4px;
+    border: 1.5px solid rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .legenda-num {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    background: var(--ink);
+    color: white;
+    font-size: 0.58rem;
+    font-weight: 600;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+  }
+
+  .legenda-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .legenda-hex {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.88rem;
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .legenda-simbolo {
+    font-size: 0.72rem;
+    color: var(--thread);
+    font-weight: 500;
+  }
+
   @media (max-width: 768px) {
     .workspace { grid-template-columns: 1fr; }
     .main-area { padding: 20px 12px; }
     header { padding: 18px 20px; }
     header h1 { font-size: 1.3rem; }
     .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    .legenda-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
   }
 </style>
 </head>
@@ -425,8 +513,8 @@
       <div class="section-label">Imagem</div>
       <div class="upload-zone" id="upload-zone">
         <button class="remove-image" id="remove-image" aria-label="Remover imagem">×</button>
-        <input type="file" id="imagem" accept="image/*">
-        <img id="preview-img" style="display:none" alt="preview">
+        <input type="file" id="imagem" accept="image/png, image/jpeg, image/jpg, image/gif, image/webp">
+        <img id="preview-img" style="display:none" alt="Prévia da imagem">
         <div id="upload-placeholder">
           <span class="upload-icon">🧵</span>
           <p><strong>Clique ou arraste</strong><br>para selecionar a imagem</p>
@@ -434,7 +522,7 @@
       </div>
     </div>
 
-    <!-- Controls -->
+    <!-- Configurações -->
     <div>
       <div class="section-label">Configurações</div>
       <div style="display:flex;flex-direction:column;gap:18px;">
@@ -477,37 +565,37 @@
       </div>
     </div>
 
-    <!-- Progress -->
+    <!-- Barra de progresso -->
     <div id="progress-wrap">
       <span class="hint" id="progress-label">Processando...</span>
       <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
     </div>
 
-    <!-- Actions -->
+    <!-- Botões -->
     <div style="display:flex;flex-direction:column;gap:8px;">
       <button class="btn btn-primary" id="btn-gerar" onclick="gerarPontoCruz()" disabled>
         ✦ Gerar Ponto Cruz
       </button>
-      <button class="btn btn-secondary" id="btn-baixar" onclick="baixarImagem()" disabled>
-        ↓ Baixar PNG (transparente)
+      <button class="btn btn-secondary" id="btn-baixar" onclick="baixarComLegenda()" disabled>
+        ↓ Baixar PNG com Legenda
       </button>
     </div>
 
-    <!-- Palette -->
+    <!-- Paleta de cores -->
     <div id="paleta-section">
       <div class="section-label">Paleta usada</div>
       <div class="paleta-grid" id="paleta-grid"></div>
       <div class="cores-count" id="cores-count"></div>
-      <div class="color-stats" id="color-stats"></div>
     </div>
   </aside>
 
-  <!-- MAIN -->
+  <!-- Área principal -->
   <main class="main-area">
     <div class="canvas-placeholder" id="placeholder">
       <div class="big-x">✕</div>
-      <p>Selecione uma imagem e ajuste as configurações para gerar o padrão de ponto cruz.<br><strong>O fundo será totalmente transparente</strong>, apenas os pontos aparecerão.</p>
+      <p>Selecione uma imagem e ajuste as configurações para gerar o padrão de ponto cruz.<br><strong>O fundo será totalmente transparente</strong>.</p>
     </div>
+
     <div class="canvas-wrapper" id="canvas-wrapper">
       <div class="canvas-controls">
         <button class="zoom-btn" onclick="zoom(-0.1)">−</button>
@@ -523,22 +611,35 @@
         <span id="info-pontos"></span>
       </div>
     </div>
+
+    <!-- Legenda -->
+    <div id="legenda-section">
+      <div class="legenda-header">
+        <h2>Legenda de Cores e Símbolos</h2>
+        <span id="legenda-total-label">— cores</span>
+      </div>
+      <div class="legenda-body">
+        <div class="legenda-grid" id="legenda-grid"></div>
+      </div>
+    </div>
   </main>
 </div>
 
 <script>
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
-  let imagemOriginal = new Image();
+  let imagemOriginal = null;
   let gerado = false;
   let zoomLevel = 1;
   let dadosImagem = null;
   let paletaGlobal = null;
-  
-  // Símbolos para ponto cruz
-  const SIMBOLOS = ['✕', '✖', '✦', '✧', '★', '☆', '◆', '◇', '●', '○', '■', '□', '▲', '△', '▼', '▽', '♦', '♣', '♠', '♥', '✿', '❀', '❁', '❃', '❄', '❅', '❆', '❇', '❈', '❉', '❊', '❋'];
-  
-  // Range inputs
+  let contagemCoresGlobal = null;
+  let totalPontosGlobal = 0;
+  let usarSimbolosGlobal = false;
+
+  const SIMBOLOS = ['✕','✖','✦','✧','★','☆','◆','◇','●','○','■','□','▲','△','▼','▽','♦','♣','♠','♥','✿','❀','❁','❃','❄','❅','❆','❇','❈','❉','❊','❋'];
+
+  // Controles de faixa
   const ranges = [
     { id: 'pontos', val: 'v-pontos' },
     { id: 'cores',  val: 'v-cores'  },
@@ -550,356 +651,358 @@
       document.getElementById(val).textContent = el.value;
     });
   });
-  
-  // Upload
+
+  // Upload e carregamento da imagem
   const uploadZone = document.getElementById('upload-zone');
   const previewImg = document.getElementById('preview-img');
   const uploadPlaceholder = document.getElementById('upload-placeholder');
-  
-  document.getElementById('imagem').addEventListener('change', function(e) {
+  const inputImagem = document.getElementById('imagem');
+
+  inputImagem.addEventListener('change', function(e) {
     const arquivo = e.target.files[0];
     if (!arquivo) return;
     carregarImagem(arquivo);
   });
-  
+
   function carregarImagem(arquivo) {
+    if (!arquivo.type.match('image.*')) {
+      alert('Selecione um arquivo de imagem válido!');
+      return;
+    }
+
     const leitor = new FileReader();
     leitor.onload = function(ev) {
       imagemOriginal = new Image();
+      imagemOriginal.crossOrigin = "anonymous";
       imagemOriginal.onload = function() {
         previewImg.src = ev.target.result;
         previewImg.style.display = 'block';
         uploadPlaceholder.style.display = 'none';
         uploadZone.classList.add('has-image');
         document.getElementById('btn-gerar').disabled = false;
+        console.log("Imagem carregada com sucesso!");
+      };
+      imagemOriginal.onerror = function() {
+        alert('Não foi possível carregar a imagem. Tente outro arquivo.');
+        resetarUpload();
       };
       imagemOriginal.src = ev.target.result;
     };
     leitor.readAsDataURL(arquivo);
   }
-  
-  // Remover imagem
-  document.getElementById('remove-image').addEventListener('click', function(e) {
-    e.stopPropagation();
-    imagemOriginal = new Image();
+
+  function resetarUpload() {
+    imagemOriginal = null;
     previewImg.src = '';
     previewImg.style.display = 'none';
     uploadPlaceholder.style.display = 'block';
     uploadZone.classList.remove('has-image');
-    document.getElementById('imagem').value = '';
+    inputImagem.value = '';
     document.getElementById('btn-gerar').disabled = true;
     document.getElementById('btn-baixar').disabled = true;
     document.getElementById('canvas-wrapper').style.display = 'none';
     document.getElementById('placeholder').style.display = 'flex';
     document.getElementById('paleta-section').style.display = 'none';
+    document.getElementById('legenda-section').style.display = 'none';
     gerado = false;
+  }
+
+  document.getElementById('remove-image').addEventListener('click', function(e) {
+    e.stopPropagation();
+    resetarUpload();
   });
-  
-  // Drag and drop
-  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = 'var(--thread)'; });
-  uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = ''; });
+
+  // Arraste e solte
+  uploadZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    uploadZone.style.borderColor = 'var(--thread)';
+  });
+  uploadZone.addEventListener('dragleave', () => {
+    uploadZone.style.borderColor = '';
+  });
   uploadZone.addEventListener('drop', e => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      carregarImagem(file);
+    uploadZone.style.borderColor = '';
+    const arquivo = e.dataTransfer.files[0];
+    if (arquivo && arquivo.type.match('image.*')) {
+      carregarImagem(arquivo);
+    } else {
+      alert('Arquivo inválido! Envie apenas imagens.');
     }
   });
-  
-  /* K-means++ otimizado */
-  function kMeansPlusPlus(pixels, numClusters, maxIter = 15) {
-    const n = pixels.length / 4;
-    const maxSamples = 5000;
-    const step = Math.max(1, Math.floor(n / maxSamples));
-    
+
+  // Algoritmo K-means para cores
+  function kMeansPlusPlus(pixels, numClusters) {
     const amostras = [];
-    for (let i = 0; i < n; i += step) {
-      amostras.push(i * 4);
+    const tamanho = pixels.length / 4;
+    const passo = Math.max(1, Math.floor(tamanho / 5000));
+    for (let i = 0; i < tamanho * 4; i += 4 * passo) {
+      amostras.push([pixels[i], pixels[i+1], pixels[i+2]]);
     }
-  
+
+    if (amostras.length === 0) return [[0,0,0]];
+
     const centroides = [];
-    const primeiroIdx = amostras[Math.floor(Math.random() * amostras.length)];
-    centroides.push([pixels[primeiroIdx], pixels[primeiroIdx+1], pixels[primeiroIdx+2]]);
-  
+    centroides.push(amostras[Math.floor(Math.random() * amostras.length)]);
+
     for (let c = 1; c < numClusters; c++) {
-      const distancias = [];
-      let somaDist = 0;
-      
-      for (const pi of amostras) {
-        const cor = [pixels[pi], pixels[pi+1], pixels[pi+2]];
-        let minDist = Infinity;
-        for (const centroide of centroides) {
-          const d = distCor(cor, centroide);
-          if (d < minDist) minDist = d;
-        }
-        distancias.push(minDist);
-        somaDist += minDist;
+      const distancias = amostras.map(cor => Math.min(...centroides.map(centro => distCor(cor, centro))));
+      const soma = distancias.reduce((a,b) => a + b, 0);
+      let r = Math.random() * soma;
+      let i = 0;
+      for (; i < distancias.length; i++) {
+        r -= distancias[i];
+        if (r <= 0) break;
       }
-  
-      let rand = Math.random() * somaDist;
-      let idx = 0;
-      for (; idx < distancias.length - 1; idx++) {
-        rand -= distancias[idx];
-        if (rand <= 0) break;
-      }
-      
-      const pi = amostras[idx];
-      centroides.push([pixels[pi], pixels[pi+1], pixels[pi+2]]);
+      centroides.push(amostras[i]);
     }
-  
-    let atribuicoes = new Array(amostras.length).fill(0);
-  
-    for (let iter = 0; iter < maxIter; iter++) {
+
+    for (let iter = 0; iter < 15; iter++) {
+      const grupos = Array.from({length: numClusters}, () => []);
+      amostras.forEach(cor => {
+        const idx = centroides.reduce((melhor, centro, i) => 
+          distCor(cor, centro) < distCor(cor, centroides[melhor]) ? i : melhor, 0);
+        grupos[idx].push(cor);
+      });
+
       let mudou = false;
-      
-      for (let ai = 0; ai < amostras.length; ai++) {
-        const pi = amostras[ai];
-        const cor = [pixels[pi], pixels[pi+1], pixels[pi+2]];
-        let melhorDist = Infinity, melhorC = 0;
-        
-        for (let c = 0; c < centroides.length; c++) {
-          const d = distCor(cor, centroides[c]);
-          if (d < melhorDist) { melhorDist = d; melhorC = c; }
+      grupos.forEach((grupo, i) => {
+        if (grupo.length === 0) return;
+        const r = Math.round(grupo.reduce((s,c) => s + c[0], 0) / grupo.length);
+        const g = Math.round(grupo.reduce((s,c) => s + c[1], 0) / grupo.length);
+        const b = Math.round(grupo.reduce((s,c) => s + c[2], 0) / grupo.length);
+        if (centroides[i][0] !== r || centroides[i][1] !== g || centroides[i][2] !== b) {
+          centroides[i] = [r, g, b];
+          mudou = true;
         }
-        
-        if (atribuicoes[ai] !== melhorC) { 
-          atribuicoes[ai] = melhorC; 
-          mudou = true; 
-        }
-      }
-      
+      });
       if (!mudou) break;
-  
-      const grupos = Array.from({ length: numClusters }, () => []);
-      for (let ai = 0; ai < amostras.length; ai++) {
-        grupos[atribuicoes[ai]].push(amostras[ai]);
-      }
-      
-      for (let c = 0; c < numClusters; c++) {
-        if (grupos[c].length > 0) {
-          let r = 0, g = 0, b = 0;
-          for (const i of grupos[c]) {
-            r += pixels[i]; g += pixels[i+1]; b += pixels[i+2];
-          }
-          const len = grupos[c].length;
-          centroides[c] = [Math.round(r/len), Math.round(g/len), Math.round(b/len)];
-        }
-      }
     }
+
     return centroides;
   }
-  
+
   function distCor(a, b) {
-    const dr = a[0]-b[0], dg = a[1]-b[1], db = a[2]-b[2];
-    return dr*dr + dg*dg + db*db;
+    return Math.sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2);
   }
-  
+
   const cacheCores = new Map();
-  
   function encontrarCorMaisProxima(r, g, b, paleta) {
-    const key = `${r},${g},${b}`;
-    if (cacheCores.has(key)) return cacheCores.get(key);
-    
-    let melhor = 0, melhorDist = Infinity;
-    for (let i = 0; i < paleta.length; i++) {
-      const d = distCor([r, g, b], paleta[i]);
-      if (d < melhorDist) { melhorDist = d; melhor = i; }
-    }
-    
-    const cor = paleta[melhor];
-    cacheCores.set(key, cor);
-    return cor;
+    const chave = `${r},${g},${b}`;
+    if (cacheCores.has(chave)) return cacheCores.get(chave);
+    let melhor = paleta[0], menorDist = Infinity;
+    paleta.forEach(cor => {
+      const d = distCor([r,g,b], cor);
+      if (d < menorDist) { menorDist = d; melhor = cor; }
+    });
+    cacheCores.set(chave, melhor);
+    return melhor;
   }
-  
-  function setProgress(pct, label) {
-    document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('progress-label').textContent = label;
+
+  function setProgress(pct, texto) {
+    document.getElementById('progress-fill').style.width = `${pct}%`;
+    document.getElementById('progress-label').textContent = texto;
   }
-  
-  async function gerarPontoCruz() {
-    if (!imagemOriginal.src) { alert("Selecione uma imagem."); return; }
-  
-    cacheCores.clear();
-  
-    const blocos   = parseInt(document.getElementById("pontos").value);
-    const maxCores = parseInt(document.getElementById("cores").value);
-    const tamanho  = parseInt(document.getElementById("celula").value);
-    const verGrade = document.getElementById("grade").checked;
-    const usarSimbolos = document.getElementById("simbolos").checked;
-  
-    const proporcao = imagemOriginal.height / imagemOriginal.width;
-    const linhas = Math.round(blocos * proporcao);
-  
-    const pw = document.getElementById('progress-wrap');
-    pw.style.display = 'flex';
-    setProgress(5, 'Redimensionando imagem...');
-    document.getElementById('btn-gerar').disabled = true;
-  
-    await new Promise(r => setTimeout(r, 20));
-  
-    const temp = document.createElement("canvas");
-    temp.width = blocos; temp.height = linhas;
-    const tctx = temp.getContext("2d");
-    tctx.drawImage(imagemOriginal, 0, 0, blocos, linhas);
-    dadosImagem = tctx.getImageData(0, 0, blocos, linhas).data;
-  
-    setProgress(20, 'Calculando paleta de cores (k-means++)...');
-    await new Promise(r => setTimeout(r, 20));
-  
-    paletaGlobal = kMeansPlusPlus(dadosImagem, maxCores);
-  
-    setProgress(60, 'Desenhando padrão...');
-    await new Promise(r => setTimeout(r, 20));
-  
-    // Canvas com fundo TRANSPARENTE
-    canvas.width = blocos * tamanho;
-    canvas.height = linhas * tamanho;
-    
-    // Limpar com transparência total
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // IMPORTANTE: Não preencher com cor sólida - manter transparente!
-    // ctx.fillStyle = '#ffffff';  <-- REMOVIDO
-    // ctx.fillRect(0, 0, canvas.width, canvas.height);  <-- REMOVIDO
-  
-    const total = linhas * blocos;
-    let cnt = 0;
-    const BATCH = 800;
-  
-    async function desenharLote(inicio) {
-      const fim = Math.min(inicio + BATCH, total);
-      for (let idx = inicio; idx < fim; idx++) {
-        const y = Math.floor(idx / blocos);
-        const x = idx % blocos;
-        const i = (y * blocos + x) * 4;
-  
-        const [r, g, b] = encontrarCorMaisProxima(dadosImagem[i], dadosImagem[i+1], dadosImagem[i+2], paletaGlobal);
-  
-        const x0 = x * tamanho;
-        const y0 = y * tamanho;
-        
-        // NÃO desenhar fundo colorido - apenas os pontos e grade
-        // O fundo permanece transparente naturalmente
-        
-        if (usarSimbolos && tamanho >= 10) {
-          const corIdx = paletaGlobal.findIndex(c => c[0] === r && c[1] === g && c[2] === b);
-          const simbolo = SIMBOLOS[corIdx % SIMBOLOS.length];
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
-          ctx.font = `${tamanho * 0.7}px Arial`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(simbolo, x0 + tamanho/2, y0 + tamanho/2);
-        } else {
-          // Desenhar apenas a cruz, sem fundo
-          ctx.strokeStyle = `rgb(${r},${g},${b})`;
-          ctx.lineWidth = tamanho > 10 ? 1.8 : 1.2;
-          ctx.lineCap = 'round';
-  
-          const pad = tamanho > 10 ? 2 : 1.5;
-          ctx.beginPath();
-          ctx.moveTo(x0 + pad, y0 + pad);
-          ctx.lineTo(x0 + tamanho - pad, y0 + tamanho - pad);
-          ctx.stroke();
-  
-          ctx.beginPath();
-          ctx.moveTo(x0 + tamanho - pad, y0 + pad);
-          ctx.lineTo(x0 + pad, y0 + tamanho - pad);
-          ctx.stroke();
-        }
-  
-        if (verGrade) {
-          ctx.strokeStyle = "rgba(100,90,80,0.25)";
-          ctx.lineWidth = 0.5;
-          ctx.strokeRect(x0, y0, tamanho, tamanho);
-        }
-      }
-      cnt = fim;
-    }
-  
-    for (let s = 0; s < total; s += BATCH) {
-      await desenharLote(s);
-      const pct = 60 + Math.round((cnt / total) * 38);
-      setProgress(pct, `Desenhando... ${Math.round(cnt/total*100)}%`);
-      await new Promise(r => setTimeout(r, 0));
-    }
-  
-    setProgress(100, 'Concluído!');
-  
-    // Paleta visual e estatísticas
-    const paletaGrid = document.getElementById('paleta-grid');
-    paletaGrid.innerHTML = '';
-    const colorStats = document.getElementById('color-stats');
-    colorStats.innerHTML = '';
-    
-    const contagemCores = new Map();
-    
-    for (let idx = 0; idx < total; idx++) {
-      const y = Math.floor(idx / blocos);
-      const x = idx % blocos;
-      const i = (y * blocos + x) * 4;
-      const [r, g, b] = encontrarCorMaisProxima(dadosImagem[i], dadosImagem[i+1], dadosImagem[i+2], paletaGlobal);
-      const key = `${r},${g},${b}`;
-      contagemCores.set(key, (contagemCores.get(key) || 0) + 1);
-    }
-    
-    const coresUsadas = [...contagemCores.keys()];
-    coresUsadas.forEach(c => {
-      const [r,g,b] = c.split(',');
-      const hex = '#' + [r,g,b].map(v => parseInt(v).toString(16).padStart(2,'0')).join('');
-      
-      const el = document.createElement('div');
-      el.className = 'paleta-item';
-      el.style.background = `rgb(${c})`;
-      el.setAttribute('data-hex', hex.toUpperCase());
-      el.title = hex.toUpperCase();
-      paletaGrid.appendChild(el);
-      
-      const count = contagemCores.get(c);
-      const pct = ((count / total) * 100).toFixed(1);
-      const statItem = document.createElement('div');
-      statItem.className = 'color-stat-item';
-      statItem.innerHTML = `
-        <div class="color-stat-swatch" style="background:rgb(${c})"></div>
-        <div class="color-stat-info">
-          <span>${hex.toUpperCase()}</span>
-          <span>${count} pontos (${pct}%)</span>
+
+  // Montar legenda
+  function montarLegenda() {
+    const grid = document.getElementById('legenda-grid');
+    grid.innerHTML = '';
+    const entradas = [...contagemCoresGlobal.entries()]
+      .map(([chave, qtd]) => {
+      const [r,g,b] = chave.split(',').map(Number);
+      const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`.toUpperCase();
+      const idx = paletaGlobal.findIndex(c => c[0] === r && c[1] === g && c[2] === b);
+      const simbolo = idx >= 0 ? SIMBOLOS[idx % SIMBOLOS.length] : '';
+      return { r,g,b,hex,qtd,simbolo };
+    }).sort((a,b) => b.qtd - a.qtd);
+
+    entradas.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'legenda-item';
+      div.innerHTML = `
+        <div class="legenda-swatch-wrap">
+          <span class="legenda-num">${i+1}</span>
+          <div class="legenda-swatch" style="background:rgba(${item.r},${item.g},${item.b},0.1); border-color:rgb(${item.r},${item.g},${item.b}); color:rgb(${item.r},${item.g},${item.b})">
+            ${usarSimbolosGlobal ? item.simbolo : ''}
+          </div>
+        </div>
+        <div class="legenda-info">
+          <div class="legenda-hex">${item.hex}</div>
+          ${usarSimbolosGlobal ? `<div class="legenda-simbolo">Símbolo: ${item.simbolo}</div>` : ''}
+          <div style="font-size:0.7rem; color:#888">${item.qtd.toLocaleString('pt-BR')} pontos</div>
         </div>
       `;
-      colorStats.appendChild(statItem);
+      grid.appendChild(div);
     });
-    
-    document.getElementById('cores-count').textContent = `${coresUsadas.length} cores utilizadas`;
-    document.getElementById('paleta-section').style.display = 'block';
-  
-    document.getElementById('info-dimensoes').innerHTML = `<strong>${canvas.width}×${canvas.height}</strong> px`;
-    document.getElementById('info-pontos').innerHTML = `<strong>${blocos}×${linhas}</strong> pontos`;
-  
+
+    document.getElementById('legenda-total-label').textContent = `${entradas.length} cores`;
+    document.getElementById('legenda-section').style.display = 'block';
+  }
+
+  // Gerar padrão de ponto cruz
+  async function gerarPontoCruz() {
+    if (!imagemOriginal) {
+      alert('Selecione uma imagem primeiro!');
+      return;
+    }
+
+    cacheCores.clear();
+    const blocos = parseInt(document.getElementById('pontos').value);
+    const maxCores = parseInt(document.getElementById('cores').value);
+    const tamCelula = parseInt(document.getElementById('celula').value);
+    const mostrarGrade = document.getElementById('grade').checked;
+    usarSimbolosGlobal = document.getElementById('simbolos').checked;
+
+    const proporcao = imagemOriginal.height / imagemOriginal.width;
+    const linhas = Math.round(blocos * proporcao);
+
+    document.getElementById('progress-wrap').style.display = 'flex';
+    setProgress(10, 'Redimensionando imagem...');
+    document.getElementById('btn-gerar').disabled = true;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = blocos;
+    tempCanvas.height = linhas;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(imagemOriginal, 0, 0, blocos, linhas);
+    dadosImagem = tempCtx.getImageData(0, 0, blocos, linhas).data;
+
+    setProgress(30, 'Calculando cores...');
+    await new Promise(r => setTimeout(r, 20));
+    paletaGlobal = kMeansPlusPlus(dadosImagem, maxCores);
+
+    setProgress(60, 'Desenhando padrão...');
+    await new Promise(r => setTimeout(r, 20));
+
+    canvas.width = blocos * tamCelula;
+    canvas.height = linhas * tamCelula;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    contagemCoresGlobal = new Map();
+    totalPontosGlobal = blocos * linhas;
+
+    for (let y = 0; y < linhas; y++) {
+      for (let x = 0; x < blocos; x++) {
+        const idx = (y * blocos + x) * 4;
+        const r = dadosImagem[idx];
+        const g = dadosImagem[idx+1];
+        const b = dadosImagem[idx+2];
+
+        const cor = encontrarCorMaisProxima(r, g, b, paletaGlobal);
+        const chave = `${cor[0]},${cor[1]},${cor[2]}`;
+        contagemCoresGlobal.set(chave, (contagemCoresGlobal.get(chave) || 0) + 1);
+
+        const posX = x * tamCelula;
+        const posY = y * tamCelula;
+
+        if (usarSimbolosGlobal && tamCelula >= 10) {
+          const indiceCor = paletaGlobal.findIndex(c => c[0] === cor[0] && c[1] === cor[1] && c[2] === cor[2]);
+          ctx.fillStyle = `rgb(${cor[0]},${cor[1]},${cor[2]})`;
+          ctx.font = `${tamCelula * 0.7}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(SIMBOLOS[indiceCor % SIMBOLOS.length], posX + tamCelula/2, posY + tamCelula/2);
+        } else {
+          ctx.strokeStyle = `rgb(${cor[0]},${cor[1]},${cor[2]})`;
+          ctx.lineWidth = tamCelula > 10 ? 1.8 : 1.2;
+          const p = tamCelula > 10 ? 2 : 1;
+          ctx.beginPath();
+          ctx.moveTo(posX + p, posY + p);
+          ctx.lineTo(posX + tamCelula - p, posY + tamCelula - p);
+          ctx.moveTo(posX + tamCelula - p, posY + p);
+          ctx.lineTo(posX + p, posY + tamCelula - p);
+          ctx.stroke();
+        }
+
+        if (mostrarGrade) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(posX, posY, tamCelula, tamCelula);
+        }
+      }
+    }
+
+    setProgress(90, 'Montando legenda...');
+    montarLegenda();
+
+    setProgress(100, 'Concluído!');
     document.getElementById('placeholder').style.display = 'none';
-    const cw = document.getElementById('canvas-wrapper');
-    cw.style.display = 'flex';
-  
+    document.getElementById('canvas-wrapper').style.display = 'flex';
     document.getElementById('btn-baixar').disabled = false;
-    document.getElementById('btn-gerar').disabled = false;
     gerado = true;
-  
-    setTimeout(() => { pw.style.display = 'none'; }, 1500);
+
+    setTimeout(() => {
+      document.getElementById('progress-wrap').style.display = 'none';
+      document.getElementById('btn-gerar').disabled = false;
+    }, 1500);
   }
-  
-  function baixarImagem() {
+
+  // Baixar imagem com legenda
+  function baixarComLegenda() {
     if (!gerado) return;
-    const link = document.createElement("a");
-    link.download = "ponto_cruz_sem_fundo.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+
+    const imgBase = canvas.toDataURL('image/png');
+    const temp = new Image();
+    temp.src = imgBase;
+
+    temp.onload = () => {
+      const margem = 30;
+      const larguraLeg = 320;
+      const alturaLeg = contagemCoresGlobal.size * 45 + 60;
+      const larguraFinal = temp.width + larguraLeg + margem * 3;
+      const alturaFinal = Math.max(temp.height, alturaLeg) + margem * 2;
+
+      const finalCanvas = document.createElement('canvas');
+      finalCanvas.width = larguraFinal;
+      finalCanvas.height = alturaFinal;
+      const finalCtx = finalCanvas.getContext('2d');
+      finalCtx.fillStyle = '#ffffff';
+      finalCtx.fillRect(0, 0, larguraFinal, alturaFinal);
+
+      finalCtx.drawImage(temp, margem, margem);
+
+      finalCtx.font = 'bold 16px Playfair Display';
+      finalCtx.fillStyle = '#1a1a2e';
+      finalCtx.fillText('Legenda', temp.width + margem * 2, margem + 20);
+
+      const entradas = [...contagemCoresGlobal.entries()]
+        .map(([chave, qtd]) => {
+          const [r,g,b] = chave.split(',').map(Number);
+          const hex = `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`.toUpperCase();
+          const idx = paletaGlobal.findIndex(c => c[0] === r && c[1] === g && c[2] === b);
+          const simbolo = idx >= 0 ? SIMBOLOS[idx % SIMBOLOS.length] : '';
+          return {r,g,b,hex,qtd,simbolo};
+        }).sort((a,b) => b.qtd - a.qtd);
+
+      let yPos = margem + 50;
+      entradas.forEach((item, i) => {
+        finalCtx.fillStyle = `rgb(${item.r},${item.g},${item.b})`;
+        finalCtx.fillRect(temp.width + margem * 2, yPos, 25, 25);
+        finalCtx.strokeStyle = '#333';
+        finalCtx.lineWidth = 1;
+        finalCtx.strokeRect(temp.width + margem * 2, yPos, 25, 25);
+
+        finalCtx.fillStyle = '#000';
+        finalCtx.font = '13px DM Sans';
+        finalCtx.fillText(`${i+1} - ${item.hex} ${usarSimbolosGlobal ? `| ${item.simbolo}` : ''}`, temp.width + margem * 2 + 35, yPos + 17);
+        yPos += 40;
+      });
+
+      const link = document.createElement('a');
+      link.download = `ponto_cruz_${new Date().toISOString().slice(0,10)}.png`;
+      link.href = finalCanvas.toDataURL('image/png');
+      link.click();
+    };
   }
-  
+
+  // Zoom
   function zoom(delta) {
     zoomLevel = Math.max(0.2, Math.min(3, zoomLevel + delta));
     canvas.style.transform = `scale(${zoomLevel})`;
-    canvas.style.transformOrigin = 'top left';
-    document.getElementById('zoom-level').textContent = Math.round(zoomLevel * 100) + '%';
+    document.getElementById('zoom-level').textContent = `${Math.round(zoomLevel * 100)}%`;
   }
-  
+
   function zoomReset() {
     zoomLevel = 1;
     canvas.style.transform = 'scale(1)';
