@@ -10,7 +10,7 @@
         .ui { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
         .controls { position:absolute; bottom:20px; left:0; right:0; text-align:center; pointer-events:auto; }
         button { background:#0a1322; color:#00d4a0; border:2px solid #1e3a5f; padding:12px 24px; margin:6px; border-radius:10px; font-size:16px; font-weight:bold; }
-        #debug { position:absolute; top:70px; left:10px; right:10px; background:rgba(0,0,0,0.7); padding:10px; font-size:13px; border-radius:8px; max-height:40%; overflow:auto; }
+        #debug { position:absolute; top:70px; left:10px; right:10px; background:rgba(0,0,0,0.85); padding:10px; font-size:13px; border-radius:8px; max-height:45%; overflow:auto; line-height:1.4; }
     </style>
 </head>
 <body>
@@ -20,9 +20,8 @@
 <div class="ui">
     <div style="padding:15px; display:flex; justify-content:space-between;">
         <h2 style="margin:0; color:#00d4a0;">◈ DETECTOR DE METAIS</h2>
-        <span id="backend" style="color:#888; font-size:13px;">Detectando sensores...</span>
+        <span id="backend" style="color:#888; font-size:13px;">Tentando magnetômetro...</span>
     </div>
-    
     <div id="debug"></div>
 
     <div class="controls">
@@ -35,13 +34,14 @@
 <script>
 // ==================== DEBUG ====================
 const debugEl = document.getElementById('debug');
-function log(msg) {
-    debugEl.innerHTML += msg + '<br>';
-    debugEl.scrollTop = debugEl.scrollHeight;
+function log(msg) { 
+    debugEl.innerHTML += `• ${msg}<br>`; 
+    debugEl.scrollTop = debugEl.scrollHeight; 
 }
 
 // ==================== VARIÁVEIS ====================
 let magRaw = [0, 0, 0];
+let lastMag = [0, 0, 0];
 let isRunning = false;
 
 const canvas = document.getElementById('mainCanvas');
@@ -50,70 +50,73 @@ const ctx = canvas.getContext('2d');
 let cursorX = 0.5, cursorY = 0.5;
 let intensity = 0.0;
 
-// ==================== SENSOR Fallback (mais compatível) ====================
-function startSensors() {
+// ==================== TENTAR ACESSAR MAGNETÔMETRO ====================
+async function startSensors() {
     const backendEl = document.getElementById('backend');
+    log("Iniciando sensores...");
 
-    // DeviceOrientation (melhor suporte para magnetômetro indireto)
-    if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', (event) => {
-            // Usa alpha (rumo) + beta/gamma para estimar variação magnética
-            if (event.alpha !== null) {
-                magRaw[0] = event.alpha || 0;     // Rumo
-                magRaw[1] = event.beta || 0;      // Inclinação
-                magRaw[2] = event.gamma || 0;     // Rotação
-                backendEl.textContent = "DeviceOrientation ✓";
-            }
-        });
-        log("DeviceOrientation ativado");
-    }
-
-    // DeviceMotion (aceleração + rotação)
-    if (window.DeviceMotionEvent) {
-        window.addEventListener('devicemotion', (event) => {
-            if (event.rotationRate) {
-                // Pode ajudar na detecção de movimento
-            }
-        });
-        log("DeviceMotion ativado");
-    } else {
-        log("⚠ Nenhum sensor de orientação detectado");
-    }
-
-    // Tenta Magnetometer (novo)
+    // 1. Tentar Magnetometer API (melhor opção)
     if ('Magnetometer' in window) {
         try {
-            const magSensor = new Magnetometer({ frequency: 50 });
-            magSensor.addEventListener('reading', () => {
-                magRaw[0] = magSensor.x || 0;
-                magRaw[1] = magSensor.y || 0;
-                magRaw[2] = magSensor.z || 0;
-                backendEl.textContent = "Magnetometer API ✓";
+            log("Magnetometer API detectada. Solicitando permissão...");
+            const sensor = new Magnetometer({ frequency: 60 });
+            
+            sensor.addEventListener('reading', () => {
+                magRaw[0] = sensor.x || 0;
+                magRaw[1] = sensor.y || 0;
+                magRaw[2] = sensor.z || 0;
+                backendEl.textContent = "✅ Magnetometer";
             });
-            magSensor.start();
-            log("Magnetometer nativo ativado");
-        } catch(e) { log("Magnetometer falhou: " + e.message); }
+
+            sensor.addEventListener('error', e => {
+                log("Erro Magnetometer: " + e.message);
+            });
+
+            await sensor.start();
+            log("✅ Magnetometer iniciado com sucesso!");
+            return;
+        } catch (e) {
+            log("Magnetometer falhou: " + e.message);
+        }
+    } else {
+        log("Magnetometer API não disponível no navegador.");
+    }
+
+    // 2. Fallback: DeviceOrientation (menos preciso)
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', (event) => {
+            if (event.alpha !== null || event.beta !== null) {
+                magRaw[0] = event.alpha || 0;
+                magRaw[1] = event.beta || 0;
+                magRaw[2] = event.gamma || 0;
+                backendEl.textContent = "DeviceOrientation (menos preciso)";
+            }
+        });
+        log("Usando DeviceOrientation como fallback");
+    } else {
+        log("⚠ Nenhum sensor de orientação disponível");
     }
 }
 
-// ==================== DETECTOR SIMPLIFICADO ====================
+// ==================== DETECTOR ====================
 const detector = {
-    prevMag: [0,0,0],
     process() {
-        const dx = magRaw[0] - this.prevMag[0];
-        const dy = magRaw[1] - this.prevMag[1];
-        const dz = magRaw[2] - this.prevMag[2];
-        
-        this.prevMag[0] = magRaw[0];
-        this.prevMag[1] = magRaw[1];
-        this.prevMag[2] = magRaw[2];
+        const dx = magRaw[0] - lastMag[0];
+        const dy = magRaw[1] - lastMag[1];
+        const dz = magRaw[2] - lastMag[2];
 
-        const intens = Math.hypot(dx, dy, dz) * 0.8; // Sensibilidade
+        lastMag[0] = magRaw[0];
+        lastMag[1] = magRaw[1];
+        lastMag[2] = magRaw[2];
+
+        // Intensidade baseada na variação magnética
+        const variation = Math.hypot(dx, dy, dz);
+        const intens = Math.min(variation * 1.8, 1.0);   // Ajuste este multiplicador
 
         return {
-            dx: dx * 0.05,
-            dy: dy * 0.05,
-            intens: Math.min(intens / 8, 1.0)  // Ajuste o /8 conforme seu celular
+            dx: dx * 0.08,   // Ajuste sensibilidade
+            dy: dy * 0.08,
+            intens: intens
         };
     }
 };
@@ -130,11 +133,9 @@ function draw() {
     const cx = w / 2, cy = h * 0.42;
     const R = Math.min(w, h) * 0.37;
 
-    // Fundo radar
     ctx.fillStyle = '#05080f';
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
 
-    // Círculos
     ctx.strokeStyle = '#1a2a4a';
     ctx.lineWidth = 2;
     for (let i = 1; i <= 4; i++) {
@@ -142,36 +143,34 @@ function draw() {
     }
 
     // Sweep
-    const ang = (Date.now() % 1600) / 1600 * Math.PI * 2;
-    ctx.strokeStyle = 'rgba(0, 212, 160, 0.5)';
-    ctx.lineWidth = 3;
+    const ang = (Date.now() % 1400) / 1400 * Math.PI * 2;
+    ctx.strokeStyle = 'rgba(0, 212, 160, 0.55)';
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + R * Math.cos(ang), cy + R * Math.sin(ang));
     ctx.stroke();
 
     // Cursor
-    const px = cx + (cursorX - 0.5) * R * 1.7;
-    const py = cy + (cursorY - 0.5) * R * 1.7;
+    const px = cx + (cursorX - 0.5) * R * 1.75;
+    const py = cy + (cursorY - 0.5) * R * 1.75;
 
-    const color = intensity > 0.35 ? '#ff6600' : '#00ccff';
-    
+    const color = intensity > 0.3 ? '#ff4400' : '#00bbff';
     ctx.fillStyle = color + '44';
-    ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, 28, 0, Math.PI*2); ctx.fill();
     
     ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(px, py, 11, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI*2); ctx.fill();
 
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI*2); ctx.fill();
 }
 
-// Loop
 function loop() {
     if (isRunning) {
         const res = detector.process();
-        cursorX = Math.max(0.08, Math.min(0.92, 0.5 + res.dx * 1.2));
-        cursorY = Math.max(0.08, Math.min(0.92, 0.5 + res.dy * 1.2));
+        cursorX = Math.max(0.08, Math.min(0.92, 0.5 + res.dx * 1.4));
+        cursorY = Math.max(0.08, Math.min(0.92, 0.5 + res.dy * 1.4));
         intensity = res.intens;
     }
     draw();
@@ -187,16 +186,17 @@ document.getElementById('btnStart').onclick = () => {
 document.getElementById('btnReset').onclick = () => {
     cursorX = cursorY = 0.5;
     intensity = 0;
+    lastMag = [...magRaw];
 };
 
-// ==================== INICIAR ====================
+// ==================== INICIALIZAÇÃO ====================
 window.onload = () => {
     resize();
     window.addEventListener('resize', resize);
     startSensors();
     loop();
     
-    log("App iniciado. Aproxime um objeto metálico do celular.");
+    log("Teste: Aproxime chave, moeda ou objeto metálico <b>bem perto</b> da parte de trás do celular.");
 };
 </script>
 </body>
