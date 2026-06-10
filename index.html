@@ -9,8 +9,8 @@
         canvas { display:block; }
         .ui { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
         .controls { position:absolute; bottom:20px; left:0; right:0; text-align:center; pointer-events:auto; }
-        button { background:#0a1322; color:#00d4a0; border:2px solid #1e3a5f; padding:12px 20px; margin:5px; border-radius:8px; font-size:16px; font-weight:bold; }
-        #status { position:absolute; top:60px; left:0; right:0; text-align:center; font-size:14px; color:#ffaa00; }
+        button { background:#0a1322; color:#00d4a0; border:2px solid #1e3a5f; padding:12px 24px; margin:6px; border-radius:10px; font-size:16px; font-weight:bold; }
+        #debug { position:absolute; top:70px; left:10px; right:10px; background:rgba(0,0,0,0.7); padding:10px; font-size:13px; border-radius:8px; max-height:40%; overflow:auto; }
     </style>
 </head>
 <body>
@@ -18,11 +18,12 @@
 <canvas id="mainCanvas"></canvas>
 
 <div class="ui">
-    <div style="padding:15px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="padding:15px; display:flex; justify-content:space-between;">
         <h2 style="margin:0; color:#00d4a0;">◈ DETECTOR DE METAIS</h2>
-        <span id="backend" style="color:#666; font-size:13px;">Iniciando sensores...</span>
+        <span id="backend" style="color:#888; font-size:13px;">Detectando sensores...</span>
     </div>
-    <div id="status">Aguardando permissão dos sensores</div>
+    
+    <div id="debug"></div>
 
     <div class="controls">
         <button id="btnStart">▶ INICIAR</button>
@@ -32,11 +33,16 @@
 </div>
 
 <script>
-// ==================== VARIÁVEIS GLOBAIS ====================
+// ==================== DEBUG ====================
+const debugEl = document.getElementById('debug');
+function log(msg) {
+    debugEl.innerHTML += msg + '<br>';
+    debugEl.scrollTop = debugEl.scrollHeight;
+}
+
+// ==================== VARIÁVEIS ====================
 let magRaw = [0, 0, 0];
-let gyroRaw = [0, 0, 0];
 let isRunning = false;
-let mode = 'idle';
 
 const canvas = document.getElementById('mainCanvas');
 const ctx = canvas.getContext('2d');
@@ -44,105 +50,70 @@ const ctx = canvas.getContext('2d');
 let cursorX = 0.5, cursorY = 0.5;
 let intensity = 0.0;
 
-// ==================== SENSOR API REAL (sem simulação) ====================
-let magSensor = null;
-let gyroSensor = null;
-
-async function startRealSensors() {
-    const statusEl = document.getElementById('status');
+// ==================== SENSOR Fallback (mais compatível) ====================
+function startSensors() {
     const backendEl = document.getElementById('backend');
 
-    try {
-        // Magnetometer (melhor precisão para detector de metais)
-        if ('Magnetometer' in window) {
-            magSensor = new Magnetometer({ frequency: 60 });
+    // DeviceOrientation (melhor suporte para magnetômetro indireto)
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', (event) => {
+            // Usa alpha (rumo) + beta/gamma para estimar variação magnética
+            if (event.alpha !== null) {
+                magRaw[0] = event.alpha || 0;     // Rumo
+                magRaw[1] = event.beta || 0;      // Inclinação
+                magRaw[2] = event.gamma || 0;     // Rotação
+                backendEl.textContent = "DeviceOrientation ✓";
+            }
+        });
+        log("DeviceOrientation ativado");
+    }
+
+    // DeviceMotion (aceleração + rotação)
+    if (window.DeviceMotionEvent) {
+        window.addEventListener('devicemotion', (event) => {
+            if (event.rotationRate) {
+                // Pode ajudar na detecção de movimento
+            }
+        });
+        log("DeviceMotion ativado");
+    } else {
+        log("⚠ Nenhum sensor de orientação detectado");
+    }
+
+    // Tenta Magnetometer (novo)
+    if ('Magnetometer' in window) {
+        try {
+            const magSensor = new Magnetometer({ frequency: 50 });
             magSensor.addEventListener('reading', () => {
                 magRaw[0] = magSensor.x || 0;
                 magRaw[1] = magSensor.y || 0;
                 magRaw[2] = magSensor.z || 0;
+                backendEl.textContent = "Magnetometer API ✓";
             });
-            magSensor.addEventListener('error', e => console.error(e));
             magSensor.start();
-            backendEl.textContent = "Magnetometer API";
-        } else {
-            backendEl.textContent = "DeviceMotion (fallback)";
-        }
-
-        // Gyroscope (para detectar movimento)
-        if ('Gyroscope' in window) {
-            gyroSensor = new Gyroscope({ frequency: 60 });
-            gyroSensor.addEventListener('reading', () => {
-                gyroRaw[0] = gyroSensor.x || 0;
-                gyroRaw[1] = gyroSensor.y || 0;
-                gyroRaw[2] = gyroSensor.z || 0;
-            });
-            gyroSensor.start();
-        }
-
-        statusEl.textContent = "Sensores ativados ✓";
-        statusEl.style.color = "#00ffaa";
-    } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Erro ao acessar sensores";
-        backendEl.textContent = "Fallback ativado";
+            log("Magnetometer nativo ativado");
+        } catch(e) { log("Magnetometer falhou: " + e.message); }
     }
 }
 
-// ==================== LÓGICA DO DETECTOR (igual ao Python) ====================
-class EMA {
-    constructor(alpha) { this.alpha = alpha; this.value = null; }
-    update(x) {
-        if (this.value === null) this.value = x;
-        else this.value += this.alpha * (x - this.value);
-        return this.value;
-    }
-    reset() { this.value = null; }
-}
-
+// ==================== DETECTOR SIMPLIFICADO ====================
 const detector = {
-    sm_x: new EMA(0.35), sm_y: new EMA(0.35), sm_z: new EMA(0.35),
-    rf_x: new EMA(0.004), rf_y: new EMA(0.004), rf_z: new EMA(0.004),
-    ox: new EMA(0.22), oy: new EMA(0.22), om: new EMA(0.16),
-    ge: new EMA(0.35),
-    initFrames: 0,
-    initiated: false,
-
+    prevMag: [0,0,0],
     process() {
-        const sx = this.sm_x.update(magRaw[0]);
-        const sy = this.sm_y.update(magRaw[1]);
-        const sz = this.sm_z.update(magRaw[2]);
+        const dx = magRaw[0] - this.prevMag[0];
+        const dy = magRaw[1] - this.prevMag[1];
+        const dz = magRaw[2] - this.prevMag[2];
+        
+        this.prevMag[0] = magRaw[0];
+        this.prevMag[1] = magRaw[1];
+        this.prevMag[2] = magRaw[2];
 
-        const gs = Math.hypot(gyroRaw[0], gyroRaw[1], gyroRaw[2]);
-        const mov = gs > 0.07;
-
-        if (!mov) {
-            this.rf_x.update(sx);
-            this.rf_y.update(sy);
-            this.rf_z.update(sz);
-        }
-
-        const rx = this.rf_x.value || sx;
-        const ry = this.rf_y.value || sy;
-        const rz = this.rf_z.value || sz;
-
-        let ax = sx - rx, ay = sy - ry, az = sz - rz;
-        let intens = Math.hypot(ax, ay, az);
-
-        if (mov) intens *= Math.max(0, 1 - (gs - 0.07) * 4);
-
-        let dx = 0, dy = 0;
-        if (intens > 0.10) {
-            dx = -ax / intens;
-            dy = -ay / intens;
-        } else {
-            intens = Math.max(0, intens - 0.05);
-        }
+        const intens = Math.hypot(dx, dy, dz) * 0.8; // Sensibilidade
 
         return {
-            dx: this.ox.update(dx),
-            dy: this.oy.update(dy),
-            intens: Math.min(this.om.update(intens), 1.0),
-            mov: mov
+            dx: dx * 0.05,
+            dy: dy * 0.05,
+            intens: Math.min(intens / 8, 1.0)  // Ajuste o /8 conforme seu celular
         };
     }
 };
@@ -159,77 +130,73 @@ function draw() {
     const cx = w / 2, cy = h * 0.42;
     const R = Math.min(w, h) * 0.37;
 
-    // Fundo
+    // Fundo radar
     ctx.fillStyle = '#05080f';
-    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
 
     // Círculos
     ctx.strokeStyle = '#1a2a4a';
     ctx.lineWidth = 2;
     for (let i = 1; i <= 4; i++) {
-        ctx.beginPath(); ctx.arc(cx, cy, R * i / 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, R * i / 4, 0, Math.PI*2); ctx.stroke();
     }
 
     // Sweep
-    const ang = (Date.now() % 1800) / 1800 * Math.PI * 2;
-    ctx.strokeStyle = 'rgba(0, 212, 160, 0.45)';
-    ctx.lineWidth = 3.5;
+    const ang = (Date.now() % 1600) / 1600 * Math.PI * 2;
+    ctx.strokeStyle = 'rgba(0, 212, 160, 0.5)';
+    ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
     ctx.lineTo(cx + R * Math.cos(ang), cy + R * Math.sin(ang));
     ctx.stroke();
 
     // Cursor
-    const px = cx + (cursorX - 0.5) * R * 1.75;
-    const py = cy + (cursorY - 0.5) * R * 1.75;
+    const px = cx + (cursorX - 0.5) * R * 1.7;
+    const py = cy + (cursorY - 0.5) * R * 1.7;
 
-    const col = intensity > 0.4 ? '#ff6600' : '#00ccff';
-    ctx.fillStyle = col + '33';
-    ctx.beginPath(); ctx.arc(px, py, 22, 0, Math.PI * 2); ctx.fill();
+    const color = intensity > 0.35 ? '#ff6600' : '#00ccff';
+    
+    ctx.fillStyle = color + '44';
+    ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
+    
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(px, py, 11, 0, Math.PI*2); ctx.fill();
 
-    ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(px, py, 9, 0, Math.PI * 2); ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI*2); ctx.fill();
 }
 
-// ==================== LOOP PRINCIPAL ====================
+// Loop
 function loop() {
     if (isRunning) {
         const res = detector.process();
-
-        // Mapeamento do cursor
-        cursorX = Math.max(0.05, Math.min(0.95, 0.5 + res.dx * 0.75 * res.intens));
-        cursorY = Math.max(0.05, Math.min(0.95, 0.5 + res.dy * 0.75 * res.intens));
-
+        cursorX = Math.max(0.08, Math.min(0.92, 0.5 + res.dx * 1.2));
+        cursorY = Math.max(0.08, Math.min(0.92, 0.5 + res.dy * 1.2));
         intensity = res.intens;
     }
-
     draw();
     requestAnimationFrame(loop);
 }
 
-// ==================== CONTROLES ====================
+// ==================== BOTÕES ====================
 document.getElementById('btnStart').onclick = () => {
     isRunning = !isRunning;
     document.getElementById('btnStart').textContent = isRunning ? '■ PARAR' : '▶ INICIAR';
 };
 
 document.getElementById('btnReset').onclick = () => {
-    detector.sm_x.reset(); detector.sm_y.reset(); detector.sm_z.reset();
-    detector.rf_x.reset(); detector.rf_y.reset(); detector.rf_z.reset();
     cursorX = cursorY = 0.5;
     intensity = 0;
 };
 
-// ==================== INICIALIZAÇÃO ====================
+// ==================== INICIAR ====================
 window.onload = () => {
     resize();
     window.addEventListener('resize', resize);
-
-    startRealSensors();
+    startSensors();
     loop();
+    
+    log("App iniciado. Aproxime um objeto metálico do celular.");
 };
 </script>
 </body>
