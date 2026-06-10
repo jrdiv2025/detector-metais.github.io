@@ -5,123 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Detector de Metais</title>
     <style>
-        body { margin:0; background:#030407; color:#b8c8e0; font-family:sans-serif; overflow:hidden; touch-action:none; }
+        body { margin:0; background:#030407; color:#b8c8e0; font-family:sans-serif; overflow:hidden; }
         canvas { display:block; }
-        .ui { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-        .controls { position:absolute; bottom:20px; left:0; right:0; text-align:center; pointer-events:auto; }
-        button { background:#0a1322; color:#00d4a0; border:2px solid #1e3a5f; padding:12px 24px; margin:6px; border-radius:10px; font-size:16px; font-weight:bold; }
-        #debug { position:absolute; top:70px; left:10px; right:10px; background:rgba(0,0,0,0.85); padding:10px; font-size:13px; border-radius:8px; max-height:45%; overflow:auto; line-height:1.4; }
+        #info { position:absolute; top:10px; left:10px; right:10px; background:rgba(0,0,0,0.85); padding:12px; border-radius:8px; font-size:14px; line-height:1.4; }
+        .controls { position:absolute; bottom:20px; left:0; right:0; text-align:center; }
+        button { background:#0a1322; color:#00d4a0; border:2px solid #1e3a5f; padding:14px 20px; margin:5px; border-radius:10px; font-size:16px; font-weight:bold; }
     </style>
 </head>
 <body>
 
 <canvas id="mainCanvas"></canvas>
 
-<div class="ui">
-    <div style="padding:15px; display:flex; justify-content:space-between;">
-        <h2 style="margin:0; color:#00d4a0;">◈ DETECTOR DE METAIS</h2>
-        <span id="backend" style="color:#888; font-size:13px;">Tentando magnetômetro...</span>
-    </div>
-    <div id="debug"></div>
+<div id="info">
+    <strong>◈ DETECTOR DE METAIS</strong><br>
+    <span id="status">Aguardando sensores...</span><br>
+    <small id="debug"></small>
+</div>
 
-    <div class="controls">
-        <button id="btnStart">▶ INICIAR</button>
-        <button id="btnCalib">⊙ CALIBRAR</button>
-        <button id="btnReset">RESET</button>
-    </div>
+<div class="controls">
+    <button id="btnStart">▶ INICIAR</button>
+    <button id="btnReset">RESET</button>
 </div>
 
 <script>
-// ==================== DEBUG ====================
-const debugEl = document.getElementById('debug');
-function log(msg) { 
-    debugEl.innerHTML += `• ${msg}<br>`; 
-    debugEl.scrollTop = debugEl.scrollHeight; 
-}
-
-// ==================== VARIÁVEIS ====================
-let magRaw = [0, 0, 0];
-let lastMag = [0, 0, 0];
+// Variáveis
+let heading = 0, lastHeading = 0;
+let baseline = 0;
 let isRunning = false;
+let cursorX = 0.5, cursorY = 0.5;
+let intensity = 0;
 
 const canvas = document.getElementById('mainCanvas');
 const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const debugEl = document.getElementById('debug');
 
-let cursorX = 0.5, cursorY = 0.5;
-let intensity = 0.0;
-
-// ==================== TENTAR ACESSAR MAGNETÔMETRO ====================
-async function startSensors() {
-    const backendEl = document.getElementById('backend');
-    log("Iniciando sensores...");
-
-    // 1. Tentar Magnetometer API (melhor opção)
-    if ('Magnetometer' in window) {
-        try {
-            log("Magnetometer API detectada. Solicitando permissão...");
-            const sensor = new Magnetometer({ frequency: 60 });
-            
-            sensor.addEventListener('reading', () => {
-                magRaw[0] = sensor.x || 0;
-                magRaw[1] = sensor.y || 0;
-                magRaw[2] = sensor.z || 0;
-                backendEl.textContent = "✅ Magnetometer";
-            });
-
-            sensor.addEventListener('error', e => {
-                log("Erro Magnetometer: " + e.message);
-            });
-
-            await sensor.start();
-            log("✅ Magnetometer iniciado com sucesso!");
-            return;
-        } catch (e) {
-            log("Magnetometer falhou: " + e.message);
-        }
-    } else {
-        log("Magnetometer API não disponível no navegador.");
-    }
-
-    // 2. Fallback: DeviceOrientation (menos preciso)
-    if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', (event) => {
-            if (event.alpha !== null || event.beta !== null) {
-                magRaw[0] = event.alpha || 0;
-                magRaw[1] = event.beta || 0;
-                magRaw[2] = event.gamma || 0;
-                backendEl.textContent = "DeviceOrientation (menos preciso)";
-            }
-        });
-        log("Usando DeviceOrientation como fallback");
-    } else {
-        log("⚠ Nenhum sensor de orientação disponível");
-    }
-}
-
-// ==================== DETECTOR ====================
-const detector = {
-    process() {
-        const dx = magRaw[0] - lastMag[0];
-        const dy = magRaw[1] - lastMag[1];
-        const dz = magRaw[2] - lastMag[2];
-
-        lastMag[0] = magRaw[0];
-        lastMag[1] = magRaw[1];
-        lastMag[2] = magRaw[2];
-
-        // Intensidade baseada na variação magnética
-        const variation = Math.hypot(dx, dy, dz);
-        const intens = Math.min(variation * 1.8, 1.0);   // Ajuste este multiplicador
-
-        return {
-            dx: dx * 0.08,   // Ajuste sensibilidade
-            dy: dy * 0.08,
-            intens: intens
-        };
-    }
-};
-
-// ==================== DESENHO ====================
 function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -130,73 +48,84 @@ function resize() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const w = canvas.width, h = canvas.height;
-    const cx = w / 2, cy = h * 0.42;
-    const R = Math.min(w, h) * 0.37;
+    const cx = w/2, cy = h*0.45;
+    const R = Math.min(w,h)*0.38;
 
     ctx.fillStyle = '#05080f';
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2); ctx.fill();
 
     ctx.strokeStyle = '#1a2a4a';
-    ctx.lineWidth = 2;
-    for (let i = 1; i <= 4; i++) {
-        ctx.beginPath(); ctx.arc(cx, cy, R * i / 4, 0, Math.PI*2); ctx.stroke();
+    for (let i=1; i<=4; i++) {
+        ctx.beginPath(); ctx.arc(cx, cy, R*i/4, 0, Math.PI*2); ctx.stroke();
     }
 
     // Sweep
-    const ang = (Date.now() % 1400) / 1400 * Math.PI * 2;
-    ctx.strokeStyle = 'rgba(0, 212, 160, 0.55)';
-    ctx.lineWidth = 3.5;
+    const ang = (Date.now() % 1100)/1100 * Math.PI*2;
+    ctx.strokeStyle = '#00d4a0';
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + R * Math.cos(ang), cy + R * Math.sin(ang));
+    ctx.lineTo(cx + R*Math.cos(ang), cy + R*Math.sin(ang));
     ctx.stroke();
 
     // Cursor
-    const px = cx + (cursorX - 0.5) * R * 1.75;
-    const py = cy + (cursorY - 0.5) * R * 1.75;
+    const px = cx + (cursorX-0.5)*R*1.7;
+    const py = cy + (cursorY-0.5)*R*1.7;
+    const col = intensity > 0.35 ? '#ff5500' : '#00bbff';
 
-    const color = intensity > 0.3 ? '#ff4400' : '#00bbff';
-    ctx.fillStyle = color + '44';
-    ctx.beginPath(); ctx.arc(px, py, 28, 0, Math.PI*2); ctx.fill();
-    
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI*2); ctx.fill();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = col + '55';
+    ctx.beginPath(); ctx.arc(px, py, 26, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.arc(px, py, 11, 0, Math.PI*2); ctx.fill();
 }
 
 function loop() {
     if (isRunning) {
-        const res = detector.process();
-        cursorX = Math.max(0.08, Math.min(0.92, 0.5 + res.dx * 1.4));
-        cursorY = Math.max(0.08, Math.min(0.92, 0.5 + res.dy * 1.4));
-        intensity = res.intens;
+        const delta = Math.abs(heading - lastHeading);
+        lastHeading = heading;
+
+        // Atualiza baseline lentamente
+        baseline = baseline * 0.97 + heading * 0.03;
+
+        const variation = Math.abs(heading - baseline);
+        intensity = Math.min(variation / 35, 1.0);   // Ajuste o 35 se necessário
+
+        cursorX = 0.5 + Math.sin(heading * Math.PI / 180) * intensity * 0.9;
+        cursorY = 0.5 + Math.cos(heading * Math.PI / 180) * intensity * 0.7;
     }
     draw();
     requestAnimationFrame(loop);
 }
 
-// ==================== BOTÕES ====================
+// Sensores
+function startSensors() {
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', (e) => {
+            if (e.alpha !== null) heading = e.alpha;
+        });
+        statusEl.textContent = "✅ Sensores OK — Teste com metal";
+        debugEl.textContent = "Dica: Segure horizontal + aproxime metal devagar";
+    } else {
+        statusEl.textContent = "❌ Sensores não suportados";
+    }
+}
+
 document.getElementById('btnStart').onclick = () => {
     isRunning = !isRunning;
     document.getElementById('btnStart').textContent = isRunning ? '■ PARAR' : '▶ INICIAR';
 };
 
 document.getElementById('btnReset').onclick = () => {
+    baseline = heading;
     cursorX = cursorY = 0.5;
     intensity = 0;
-    lastMag = [...magRaw];
 };
 
-// ==================== INICIALIZAÇÃO ====================
 window.onload = () => {
     resize();
     window.addEventListener('resize', resize);
     startSensors();
     loop();
-    
-    log("Teste: Aproxime chave, moeda ou objeto metálico <b>bem perto</b> da parte de trás do celular.");
 };
 </script>
 </body>
